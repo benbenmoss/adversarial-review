@@ -1,0 +1,20 @@
+name: validate
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON manifests
+        run: |
+          python3 -c "import json,glob
+          for f in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'hooks/hooks.json']:
+              json.load(open(f))
+              print(f, 'OK')"
+      - name: Check shell syntax
+        run: |
+          for f in hooks/*.sh; do
+            bash -n "$f" && echo "$f OK"
+          done
