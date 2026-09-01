@@ -1,8 +1,34 @@
 # adversarial-review
 
+<p align="center">
+  <img src="https://img.shields.io/github/actions/workflow/status/benbenmoss/adversarial-review/validate.yml?style=flat-square&label=validate" alt="Validate status">
+  <img src="https://img.shields.io/github/v/release/benbenmoss/adversarial-review?style=flat-square&color=111111&label=release" alt="Release">
+  <img src="https://img.shields.io/github/license/benbenmoss/adversarial-review?style=flat-square&color=111111" alt="MIT license">
+  <img src="https://img.shields.io/github/stars/benbenmoss/adversarial-review?style=flat-square&color=111111&label=stars" alt="Stars">
+</p>
+
 <p align="center"><em>Skeptical senior review of everything you've changed so far, run locally, automatically, fixes what actually matters.</em></p>
 
 Not an MR/PR tool. No GitHub, no GitLab, no API calls. It reads `git diff` in your working tree and stops at commentary for nothing -- every critical finding gets patched in place.
+
+## Before / after
+
+You ask for a feature. Claude ships it, the happy path works, and a shared counter gets incremented from two goroutines without a lock.
+
+Without adversarial-review: that ships. Nobody notices until it's flaky in production.
+
+With adversarial-review, before the next prompt is even acted on:
+
+```
+### 🔴 High
+
+**Race on the shared counter under concurrent requests**
+
+`stats.count += 1` in `handler.go:88` is a non-atomic read-modify-write hit
+from every request goroutine. Fixed: replaced with `atomic.AddInt64(&stats.count, 1)`.
+```
+
+Patched in place. No commentary-only review, no waiting for a human to catch it later.
 
 ## Install
 
