@@ -1,0 +1,10 @@
+{
+  "name": "adversarial-review",
+  "version": "0.2.0",
+  "description": "Skeptical senior-level code review that runs locally on every prompt and every task-list update, auto-fixing critical flaws in accumulated changes. No Git host, no MR/PR dependency.",
+  "author": {
+    "name": "Frederick Bensia",
+    "url": "https://github.com/benbenmoss"
+  },
+  "hooks": "./hooks/hooks.json"
+}
