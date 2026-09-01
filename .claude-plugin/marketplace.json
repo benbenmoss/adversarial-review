@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "adversarial-review",
+  "description": "Universal local adversarial code review -- runs on every prompt and every task list, not tied to any Git host or MR/PR workflow.",
+  "owner": {
+    "name": "Frederick Bensia",
+    "url": "https://github.com/benbenmoss"
+  },
+  "plugins": [
+    {
+      "name": "adversarial-review",
+      "description": "Skeptical senior-level review of all local code changes so far -- auto-fixes critical flaws, ignores nits. Triggers on user-prompt-submit and task-list creation.",
+      "source": "./",
+      "category": "code-review"
+    }
+  ]
+}
