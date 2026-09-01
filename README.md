@@ -9,7 +9,7 @@
 
 <p align="center"><em>Skeptical senior review of everything you've changed so far, run locally, automatically, fixes what actually matters.</em></p>
 
-Not an MR/PR tool. No GitHub, no GitLab, no API calls. It reads `git diff` in your working tree and stops at commentary for nothing -- every critical finding gets patched in place.
+Not an MR/PR tool. No GitHub, no GitLab, no API calls. It reads your local working tree -- tracked diff and untracked new files both -- and every High-severity finding gets patched in place, not just described.
 
 ## Before / after
 
@@ -44,15 +44,17 @@ Patched in place. No commentary-only review, no waiting for a human to catch it 
 
 ## How it works
 
-Two hooks watch your working tree for changes that haven't had a review pass yet -- both no-ops on a clean tree, and both no-ops if the current diff was already reviewed:
+Two hooks watch your working tree for changes that haven't had a review pass yet -- both no-ops on a clean tree, and both no-ops if the current diff was already reviewed within the last 15 minutes:
 
 1. **On every prompt you send** (`UserPromptSubmit`) -- if there's an unreviewed diff, a reminder is injected alongside your new request telling Claude to review it first.
 2. **On every task-list create/update** (`PostToolUse` on `TodoWrite`) -- same check, same reminder. Starting or updating a plan is exactly when accumulated changes are worth checking before moving to the next step.
 
+These are nudges, not a hard gate -- a hook can inject a reminder into context but can't force a tool call. If one is ignored, the same unreviewed diff resurfaces on the next trigger rather than staying silent forever.
+
 Either trigger runs the same `adversarial-review` skill, which:
 
-3. **Reviews** the *whole* accumulated diff (`git diff HEAD`) -- not just the latest edit, everything changed so far this session -- against a fixed, narrow scope (below).
-4. **Remediates.** Every 🔴 High finding gets fixed in place with a real edit, not just flagged. 🟠 Medium gets fixed if the patch is small and safe, otherwise reported. 🟡 Low is reported only.
+3. **Reviews** the *whole* accumulated diff -- tracked changes and untracked new files, not just the latest edit, everything changed so far this session -- against a fixed, narrow scope (below).
+4. **Remediates.** Every 🔴 High finding gets fixed in place with a real edit, not just flagged (unless no safe mechanical fix exists, in which case it's reported with why). 🟠 Medium gets fixed if the patch is small and safe, otherwise reported. 🟡 Low is reported only.
 5. **Reports** findings in a fixed severity-bucketed format, ending in a one-line summary: safe to ship or not.
 
 You can also invoke the skill directly any time, outside of the two automatic triggers.
@@ -76,7 +78,7 @@ If a diff has nothing in scope wrong with it, the skill says so in one line. It 
 
 ## Requirements
 
-`git`, `bash`, `cksum` (POSIX standard, ships everywhere). No other runtime, no network access.
+`git`, `bash`, `cksum` (POSIX standard). Works out of the box on macOS/Linux; on Windows it needs Git Bash or WSL. No other runtime, no network access.
 
 ## License
 
