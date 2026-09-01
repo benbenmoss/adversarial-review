@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest something new, in scope for this plugin
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: What's missing or painful today
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        Note: this plugin's scope is local adversarial review of the working tree.
+        See [CONTRIBUTING.md](../../CONTRIBUTING.md#scope) before proposing something outside that.
