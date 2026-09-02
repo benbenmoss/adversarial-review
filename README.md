@@ -20,7 +20,7 @@ Without adversarial-review: that ships. Nobody notices until it's flaky in produ
 With adversarial-review, before the next prompt is even acted on:
 
 ```
-### 🔴 High
+### High
 
 **Race on the shared counter under concurrent requests**
 
@@ -53,19 +53,32 @@ These are nudges, not a hard gate -- a hook can inject a reminder into context b
 
 Either trigger runs the same `adversarial-review` skill, which:
 
-3. **Reviews** the *whole* accumulated diff -- tracked changes and untracked new files, not just the latest edit, everything changed so far this session -- against a fixed, narrow scope (below).
-4. **Remediates.** Every 🔴 High finding gets fixed in place with a real edit, not just flagged (unless no safe mechanical fix exists, in which case it's reported with why). 🟠 Medium gets fixed if the patch is small and safe, otherwise reported. 🟡 Low is reported only.
-5. **Reports** findings in a fixed severity-bucketed format, ending in a one-line summary: safe to ship or not.
+3. **Reviews** the *whole* accumulated diff -- tracked changes and untracked new files, not just the latest edit, everything changed so far this session -- against a fixed, narrow scope (below). If a hunk changes a signature, return type, error contract, exported symbol, schema, or config key, it also greps the rest of the repo for callers that weren't updated to match.
+4. **Remediates.** Before writing a fix it checks how the file/package already handles errors and logging, and matches that pattern. Every High finding gets fixed in place with a real edit, not just flagged (unless no safe mechanical fix exists, in which case it's reported with why). Medium gets fixed if the patch is small and safe, otherwise reported. Low is reported only.
+5. **Reports** findings in a fixed severity-bucketed format, ending in a one-line summary: safe to ship or not. If it patched anything, it also rewrites its own reviewed-diff marker afterward, so the next prompt doesn't nudge again over the fix it just made.
 
 You can also invoke the skill directly any time, outside of the two automatic triggers.
+
+## End-to-end flow
+
+1. You edit code.
+2. You send a prompt, or a todo list updates.
+3. A hook hashes the current diff (tracked + untracked). New or stale hash -> it injects a reminder. Unchanged hash within 15 minutes -> silent, nothing to do.
+4. Claude runs the `adversarial-review` skill: reads the whole diff, greps the repo for callers left broken by any changed signature, builds a severity-bucketed report.
+5. High findings get patched immediately. Medium only if the fix is small and safe. Low is reported, never touched.
+6. If anything was patched, the skill re-reviews the touched files, runs the project's build/test command if one exists, and writes its own post-fix hash to the marker.
+7. Next prompt: hash matches -> no nudge, until you change something else.
 
 ## What it catches
 
 - Logic regressions -- inverted conditions, off-by-one, dropped cases
-- Breaking interface changes -- signature, return shape, error contract
+- Breaking interface changes -- signature, return shape, error contract, including callers elsewhere in the repo the diff didn't touch
 - Unhandled error paths -- swallowed exceptions, missing checks at trust boundaries
 - Concurrency/state bugs -- races, non-atomic read-modify-write, lock ordering
 - Security holes -- injection, authz gaps, secrets, unsafe deserialization, SSRF
+- Resource lifecycle -- leaked handles/connections/goroutines, missing close/cancel/defer
+- Idempotency -- side effects that duplicate on retry (reported, never auto-fixed -- needs a design call)
+- Deploy-skew compatibility -- schema/API/config changes that break while old and new versions run at once, when the diff touches something a deployed service actually consumes (reported, never auto-fixed)
 
 ## What it ignores
 

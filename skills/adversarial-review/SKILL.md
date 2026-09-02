@@ -18,10 +18,13 @@ Purely local. No dependency on GitHub, GitLab, or any MR/PR concept -- it reads 
 
 **In scope** -- the review hunts for:
 - Critical logic regressions (wrong output, off-by-one, inverted conditions, dropped cases)
-- Breaking interface changes (signature, return shape, error contract, public API)
+- Breaking interface changes (signature, return shape, error contract, public API), including callers elsewhere in the repo not touched by this diff
 - Unhandled error paths (swallowed exceptions, missing null/empty checks at trust boundaries, unchecked external calls)
 - Concurrency/state issues (races, non-atomic read-modify-write, shared mutable state, lock ordering)
 - Security vulnerabilities (injection, auth/authz gaps, secrets, unsafe deserialization, SSRF)
+- Resource lifecycle (leaked handles/connections/goroutines, missing close/cancel/defer, unbounded caches)
+- Idempotency (side effects that duplicate on retry / at-least-once delivery) -- Medium only, never auto-fix, it needs a design call
+- Deploy-skew compatibility (schema/API/config changes that break while old and new versions run simultaneously) -- only when the diff touches a schema, wire contract, or config actually consumed by a deployed service; Medium only, never auto-fix
 
 **Out of scope** -- never raise these, even as "low" findings:
 - Naming preferences, formatting, style
@@ -46,13 +49,17 @@ Either way the review always covers the *whole* accumulated diff, not just whate
    - `git diff HEAD` for tracked changes (falls back to `git diff --cached` if `HEAD` is empty, e.g. an initial commit).
    - `git status --porcelain` for untracked (`??`) files -- **these never show up in `git diff` at all**, and a brand-new file is the most common shape of an AI-authored change. Read each one directly and review its full contents, not just the diff.
    - If a changed hunk touches a function/class whose full context isn't in the diff, read the surrounding file -- diffs lie by omission.
+   - If a hunk changes a function signature, return type, error contract, exported symbol, schema, or config key, grep the whole repo for other call sites/consumers of it -- not just files already touched in the diff. Flag any caller not updated to match.
+   - If the diff spans more than roughly 15 files or 800 lines, review in file-group chunks and say so in the report -- don't silently skim.
 2. Review against [Scope](#scope) only. Trace each changed code path to a concrete failure scenario (specific input/state -> wrong output/crash) -- if you can't construct one, it's not a finding.
 3. Report findings per [Output format](#output-format).
-4. **Remediate.**
-   - 🔴 High: apply the fix directly with Edit, don't just describe it. If a High finding has no safe, mechanical fix in scope (e.g. it needs a structural redesign, not a one-line change), don't force a risky edit just to comply -- report it with an explicit note on why it wasn't safe to auto-fix.
-   - 🟠 Medium: fix it if the change is small and obviously safe; otherwise leave it as a finding for the author to triage.
-   - 🟡 Low: never auto-fix -- report only.
+4. **Remediate.** Before writing any fix, check how this file/package handles errors and logging elsewhere in the codebase, and match that pattern -- don't introduce a new idiom to fix one bug.
+   - High: apply the fix directly with Edit, don't just describe it. If a High finding has no safe, mechanical fix in scope (e.g. it needs a structural redesign, not a one-line change), don't force a risky edit just to comply -- report it with an explicit note on why it wasn't safe to auto-fix.
+   - Medium: fix it if the change is small and obviously safe; otherwise leave it as a finding for the author to triage.
+   - Low: never auto-fix -- report only.
 5. If you changed anything in step 4: re-run steps 1-2 against the new diff for the files you touched, to confirm the fix didn't introduce a new instance of the same class of bug. Then, if the project has an obvious build/test command (a `package.json` script, `Makefile` target, `go test` for touched Go packages, etc.), run it against what you touched -- a second read-through catches re-introduced bugs, not whether the patch actually compiles or passes. Note in the report what was auto-fixed and whether it was verified.
+   - If a test file already exists covering the function that had the High-severity bug, add a case asserting the step-2 failure scenario. If no test exists for that code, don't create test scaffolding -- report the missing coverage as a Low finding instead.
+   - After verification, write `$(git rev-parse --git-dir)/adversarial-review.last` with two lines: a hash of the current `git diff HEAD` (or `--cached`) plus untracked file contents joined by a NUL byte, run through `cksum` -- matching exactly what `hooks/prompt-review-nudge.sh` computes -- followed by the current unix timestamp (`date +%s`). This marks the post-fix state as reviewed so the next prompt doesn't re-nudge on the skill's own fixes.
 
 ## Output format
 
@@ -63,7 +70,7 @@ Either way the review always covers the *whole* accumulated diff, not just whate
 
 ---
 
-### 🔴 High
+### High
 
 **<Short noun-phrase heading>**
 
@@ -71,13 +78,13 @@ Either way the review always covers the *whole* accumulated diff, not just whate
 
 ---
 
-### 🟠 Medium
+### Medium
 
 ...
 
 ---
 
-### 🟡 Low / Nitpicks
+### Low / Nitpicks
 
 ...
 
@@ -88,14 +95,14 @@ Either way the review always covers the *whole* accumulated diff, not just whate
 
 ### Rules
 
-- Severity buckets are fixed order: 🔴 High -> 🟠 Medium -> 🟡 Low / Nitpicks. Omit empty buckets -- absence is the signal, never write "no high-severity issues found."
+- Severity buckets are fixed order: High -> Medium -> Low / Nitpicks. Omit empty buckets -- absence is the signal, never write "no high-severity issues found."
 - Each finding: bold noun-phrase heading + one body paragraph with a concrete failure scenario, not a vague concern.
-- No `✅ What is done well` bucket here -- this is a gate, not a courtesy review; skip the praise.
+- No `What is done well` bucket here -- this is a gate, not a courtesy review; skip the praise.
 - Always end with `**Summary:**`, one sentence.
 - When in doubt between two severities, pick the lower one -- **except** when the failure scenario itself involves data loss, a security hole, or a broken public contract. Those stay High regardless of confidence: the cost of missing one outweighs the cost of a false positive, and this rule is not a license to downgrade a real bug because you're not 100% sure.
 
 ### Severity
 
-- **🔴 High** -- incorrect behavior, security hole, data loss, or a broken contract that ships if untouched. Always auto-fix, unless no safe fix exists in scope (see Workflow step 4).
-- **🟠 Medium** -- real but not certain to bite (fragile pattern, missed edge case under unlikely conditions). Auto-fix only if the patch is small and unambiguous.
-- **🟡 Low / Nitpicks** -- everything else that's still in scope but minor. Report, never auto-fix, never invent from out-of-scope categories.
+- **High** -- incorrect behavior, security hole, data loss, or a broken contract that ships if untouched. Always auto-fix, unless no safe fix exists in scope (see Workflow step 4).
+- **Medium** -- real but not certain to bite (fragile pattern, missed edge case under unlikely conditions). Auto-fix only if the patch is small and unambiguous.
+- **Low / Nitpicks** -- everything else that's still in scope but minor. Report, never auto-fix, never invent from out-of-scope categories.
