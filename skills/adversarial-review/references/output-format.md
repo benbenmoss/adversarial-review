@@ -6,7 +6,7 @@ One high-severity bug, otherwise clean. Fixed in place.
 
 ---
 
-### 🔴 High
+### High
 
 **Race on the shared counter under concurrent requests**
 
@@ -14,7 +14,7 @@ One high-severity bug, otherwise clean. Fixed in place.
 
 ---
 
-### 🟠 Medium
+### Medium
 
 **Retry loop has no backoff**
 
