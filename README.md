@@ -61,13 +61,10 @@ You can also invoke the skill directly any time, outside of the two automatic tr
 
 ## End-to-end flow
 
-1. Code in the working tree changes -- from Claude, from you editing by hand, from another agent, from a merge, doesn't matter. The skill only looks at working-tree state vs. `HEAD`, never who or what produced it.
-2. A prompt goes in, or a todo list updates.
-3. A hook hashes the current diff (tracked + untracked). New or stale hash -> it injects a reminder. Unchanged hash within 15 minutes -> silent, nothing to do.
-4. Claude runs the `adversarial-review` skill: reads the whole diff, greps the repo for callers left broken by any changed signature, builds a severity-bucketed report.
-5. High findings get patched immediately. Medium only if the fix is small and safe. Low is reported, never touched.
-6. If anything was patched, the skill re-reviews the touched files, runs the project's build/test command if one exists, and writes its own post-fix hash to the marker.
-7. Next prompt: hash matches -> no nudge, until you change something else.
+1. Code changes in the working tree -- from Claude, a human, another agent, doesn't matter.
+2. Next prompt (or todo update) triggers a check for unreviewed changes.
+3. If there's an unreviewed diff, the skill runs: reviews it, patches High findings, reports Medium/Low.
+4. Marked reviewed -- quiet until the tree changes again.
 
 ## What it catches
 
